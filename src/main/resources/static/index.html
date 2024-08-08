@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Refactoring Applicator</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
+          integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+</head>
+
+<body>
+<nav class="navbar navbar-expand-lg bg-dark text-white" data-bs-theme="dark">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="#">Refactoring Applicator</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
+                data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false"
+                aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarSupportedContent">
+            <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                <li class="nav-item">
+                    <a class="nav-link active" aria-current="page" href="#">Home</a>
+                </li>
+            </ul>
+        </div>
+    </div>
+</nav>
+<br>
+<div class="container-fluid">
+    <div class="row">
+        <div class="col">
+            <div id="mermaid">
+
+            </div>
+        </div>
+        <div class="col-2">
+            <h1>Refactoring Applicator</h1>
+            <p>This tool is designed to graph the inheritance relations of a given GitHub project, give the validity
+                of a given refactoring, and apply said refactoring.</p>
+            <hr>
+
+            <label>GitHub URL or Folder in <em>repos</em>: </label>
+            <br>
+            <input id="projectUrl" class="form-control" type="text">
+
+            <br><br>
+            <input id="submit" type="submit" value="Clone" class="btn btn-primary btn-lg">
+            <input id="deleteRepo" type="submit" value="Delete" class="btn btn-danger btn-lg">
+            <hr>
+            <input id="demo" type="submit" value="Clone Demo Repository" class="btn btn-warning">
+        </div>
+    </div>
+    <div class="container text-center">
+        <div class="row fixed-bottom justify-content-md-center">
+            <div class="col">
+                <div class="row">
+                    <div class="col-6">
+                        <label>&nbsp&nbsp Field: </label>
+                        <select name="classOneField" id="classOneField" class="form-select"></select>
+                    </div>
+                    <div class="col-4">
+                        <label>Class: </label>
+                        <select name="classTwoField" id="classTwoField" class="form-select"></select>
+                    </div>
+                    <div class="col-2">
+                        <input id="move-field" type="submit" value="Move Field" class="btn btn-success">
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-6">
+                        <label>&nbsp&nbsp Method: </label>
+                        <select name="classOneField" id="classOneMethod" class="form-select"></select>
+                    </div>
+                    <div class="col-4">
+                        <label>Class: </label>
+                        <select name="classTwoField" id="classTwoMethod" class="form-select"></select>
+                    </div>
+                    <div class="col-2">
+                        <input id="move-method" type="submit" value="Move Method" class="btn btn-success">
+                    </div>
+                </div>
+            </div>
+
+
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
+        crossorigin="anonymous"></script>
+<script type="text/javascript" src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+<script type="text/javascript" src="https://unpkg.com/alea@1.0.0/alea.js"></script>
+<script src="https://bumbu.me/svg-pan-zoom/dist/svg-pan-zoom.min.js"></script>
+<script src=" https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js "></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<script>
+    mermaid.initialize({ startOnLoad: false });
+
+    const drawDiagram = async function (graphDefinition) {
+        const element = document.querySelector('#mermaid');
+        const { svg } = await mermaid.render('mySvgId', graphDefinition);
+        element.innerHTML = svg.replace(/( )*max-width:( 0-9\.)*px;/i, '');
+
+        var doPan = false;
+        var eventsHandler;
+        var panZoom;
+        var mousepos;
+
+        eventsHandler = {
+            haltEventListeners: ['mousedown', 'mousemove', 'mouseup']
+            , mouseDownHandler: function (ev) {
+                if (event.target.className == "[object SVGAnimatedString]") {
+                    doPan = true;
+                    mousepos = { x: ev.clientX, y: ev.clientY }
+                };
+            }
+            , mouseMoveHandler: function (ev) {
+                if (doPan) {
+                    panZoom.panBy({ x: ev.clientX - mousepos.x, y: ev.clientY - mousepos.y });
+                    mousepos = { x: ev.clientX, y: ev.clientY };
+                    window.getSelection().removeAllRanges();
+                }
+            }
+            , mouseUpHandler: function (ev) {
+                doPan = false;
+            }
+            , init: function (options) {
+                options.svgElement.addEventListener('mousedown', this.mouseDownHandler, false);
+                options.svgElement.addEventListener('mousemove', this.mouseMoveHandler, false);
+                options.svgElement.addEventListener('mouseup', this.mouseUpHandler, false);
+            }
+            , destroy: function (options) {
+                options.svgElement.removeEventListener('mousedown', this.mouseDownHandler, false);
+                options.svgElement.removeEventListener('mousemove', this.mouseMoveHandler, false);
+                options.svgElement.removeEventListener('mouseup', this.mouseUpHandler, false);
+            }
+        }
+        panZoom = svgPanZoom('#mySvgId', {
+            zoomEnabled: true
+            , controlIconsEnabled: true
+            , fit: 0
+            , center: 1
+            , customEventsHandler: eventsHandler
+        })
+        document.getElementById('mySvgId').setAttribute("height", "1000px");
+    };
+
+    function createGraph() {
+        let graph = 'classDiagram\n';
+        fetch("http://localhost:2000/api/classes", {
+            method: "GET"
+        })
+            .then((response) => response.json())
+            .then((json) => {
+                if(json.status==="success"){
+                    json.message.forEach(function (value) {
+                        selectTwo = document.getElementById('classTwoField');
+                        selectMTwo = document.getElementById('classTwoMethod');
+                        var opt = document.createElement('option');
+                        opt.value = value.name;
+                        opt.innerHTML = value.name;
+                        selectTwo.appendChild(opt);
+                        var opt = document.createElement('option');
+                        opt.value = value.name;
+                        opt.innerHTML = value.name;
+                        selectMTwo.appendChild(opt);
+
+                        if(value.parent!=="")
+                            graph += value.parent+" <|-- "+value.name+"\n"
+
+                        selectMOne = document.getElementById('classOneMethod');
+
+                        for (let method of value.methods) {
+                            graph += value.name + ": " + method.name+"\n"
+                            var opt = document.createElement('option');
+                            opt.value = value.name+"." + method.name;
+                            opt.innerHTML = value.name+"." + method.name;
+                            selectMOne.appendChild(opt);
+                        }
+
+                        selectOne = document.getElementById('classOneField');
+
+                        for (let field of value.fields) {
+                            graph += value.name + ": " + field.type + " " + field.name+"\n"
+                            var opt = document.createElement('option');
+                            opt.value = value.name+"." + field.name;
+                            opt.innerHTML = value.name+"." + field.name;
+                            selectOne.appendChild(opt);
+                        }
+                    })
+                    drawDiagram(graph);
+                }else{
+                    alert(json.message);
+                }
+            })
+    }
+
+    $("#submit").on("click", function (event) {
+        let bodyData = new FormData();
+        bodyData.append("projectUrl", $('#projectUrl').val());
+        fetch("http://localhost:2000/api/repository", {
+            method: "POST",
+            body: bodyData
+        })
+            .then((response) => response.json())
+            .then((json) => {
+                if(json.status==="success"){
+                    createGraph();
+                }else{
+                    Swal.fire({
+                        title: "Error",
+                        text: json.message,
+                        icon: "error"
+                    });
+                }
+            })
+    });
+
+    $("#move-field").on("click", function (event) {
+        let bodyData = new FormData();
+        bodyData.append("field", $('#classOneField').val());
+        bodyData.append("class", $('#classTwoField').val());
+
+        Swal.fire({
+            title: "Contextual or Contextless Refactoring?",
+            icon: "question",
+            html:
+                `<p><strong>Contextual Refactoring</strong> means any referenced fields and called methods will be moved automatically.</p>
+                   <p><strong>Contextless Refactoring</strong> means only the field will be moved, and any references to the field will
+                    be changed to accessing an object.</p>`,
+            showDenyButton: true,
+            showCancelButton: true,
+            confirmButtonText: "Contextual",
+            denyButtonText: "Contextless",
+            confirmButtonColor: "#198754",
+        }).then((result) => {
+            /* Read more about isConfirmed, isDenied below */
+            if (result.isConfirmed) {
+                bodyData.append("context",true);
+            } else if (result.isDenied) {
+                bodyData.append("context",false);
+            }
+            if(!result.dismiss){
+                fetch("http://localhost:2000/api/move/field", {
+                    method: "POST",
+                    body: bodyData
+                })
+                    .then((response) => response.json())
+                    .then((json) => {
+                        if(json.status==="success"){
+                            Swal.fire({
+                                title: "Success!",
+                                text: json.message,
+                                icon: "success"
+                            });
+                            createGraph();
+                        }else{
+                            Swal.fire({
+                                title: "Error",
+                                text: json.message,
+                                icon: "error"
+                            });
+                        }
+                    })
+            }
+        });
+    });
+
+    $("#move-method").on("click", function (event) {
+        let bodyData = new FormData();
+        bodyData.append("field", $('#classOneMethod').val());
+        bodyData.append("class", $('#classTwoMethod').val());
+        fetch("http://localhost:2000/api/move/method", {
+            method: "POST",
+            body: bodyData
+        })
+            .then((response) => response.json())
+            .then((json) => {
+                if(json.status==="success"){
+                    Swal.fire({
+                        title: "Success!",
+                        text: json.message,
+                        icon: "success"
+                    });
+                    createGraph();
+                }else{
+                    Swal.fire({
+                        title: "Error",
+                        text: json.message,
+                        icon: "error"
+                    });
+                }
+            })
+    });
+
+    $("#deleteRepo").on("click", function (event) {
+        fetch("http://localhost:2000/api/delete", {
+            method: "GET"
+        })
+            .then((response) => response.json())
+            .then((json) => {
+                if(json.status==="success"){
+                    Swal.fire({
+                        title: "Success!",
+                        text: json.message,
+                        icon: "success"
+                    });
+                    document.getElementById('mySvgId').innerHTML = "";
+                    document.getElementById('classOneField').innerHTML = "";
+                    document.getElementById('classTwoField').innerHTML = "";
+                }else{
+                    Swal.fire({
+                        title: "Error",
+                        text: json.message,
+                        icon: "error"
+                    });
+                }
+            })
+    });
+
+    $("#demo").on("click", function (event) {
+        let bodyData = new FormData();
+        bodyData.append("projectUrl", "demo");
+        fetch("http://localhost:2000/api/repository", {
+            method: "POST",
+            body: bodyData
+        })
+            .then((response) => response.json())
+            .then((json) => {
+                if(json.status==="success"){
+                    createGraph();
+                }else{
+                    Swal.fire({
+                        title: "Error",
+                        text: json.message,
+                        icon: "error"
+                    });
+                }
+            })
+    });
+</script>
+
+
+</body>
+</html>
