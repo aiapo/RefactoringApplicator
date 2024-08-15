@@ -58,18 +58,20 @@ public class Refactor {
                     BlockStmt bS = new BlockStmt();
                     NodeList<Parameter> parameters = new NodeList<>();
                     constructorOne.findAll(Expression.class).forEach(expression -> {
-                        for(Map.Entry<String, String> con : context.entrySet()){
-                            if(con.getValue().equals("field")||con.getValue().equals("method")){
-                                if(expression.toString().equals(con.getKey())){
-                                    for(Parameter para : constructorOne.getParameters()){
-                                        if(expression.toString().equals(para.getName().toString())
-                                                &&!parameters.contains(para)){
-                                            parameters.add(para);
+                        if(expression.getParentNode().isPresent()){
+                            for(Map.Entry<String, String> con : context.entrySet()){
+                                if(con.getValue().equals("field") || con.getValue().equals("method")){
+                                    if(expression.toString().equals(con.getKey())){
+                                        for(Parameter para : constructorOne.getParameters()){
+                                            if(expression.toString()
+                                                    .equals(para.getName().toString()) &&!parameters.contains(para)){
+                                                parameters.add(para);
+                                            }
                                         }
+                                        constructorOne.getParameters().removeIf(parameters::contains);
+                                        bS.addStatement(expression.getParentNode().get()+";");
+                                        expression.getParentNode().get().removeForced();
                                     }
-                                    constructorOne.getParameters().removeIf(parameters::contains);
-                                    bS.addStatement(expression.getParentNode().get()+";");
-                                    expression.getParentNode().get().removeForced();
                                 }
                             }
                         }
@@ -97,7 +99,7 @@ public class Refactor {
         cTwo.addMember(cField.clone());
 
         // Keep track of if getters/setters are needed (if the field isn't public)
-        Boolean fieldModification = false;
+        boolean fieldModification = false;
 
         // Assuming the field isn't public
         if (!cField.isPublic()) {
@@ -122,7 +124,7 @@ public class Refactor {
         }
         // Update the field in the original class
         cTemp.addField(classTwo,"i"+classTwo).getVariable(0).setInitializer("new "+ classTwo+"()");
-        cField.replace(cTemp.getFieldByName("i"+classTwo).get());
+        cTemp.getFieldByName("i"+classTwo).ifPresent(cField::replace);
 
         Boolean finalFieldModification = fieldModification;
 
@@ -313,31 +315,32 @@ public class Refactor {
         ).forEach(c -> {
             c.findAll(ObjectCreationExpr.class).forEach(objectCreationExpr -> {
                 if(objectCreationExpr.getType().toString().equals(one)) {
-                    Node parent = objectCreationExpr.getParentNode().get();
-                    NodeMetaModel metaModel = parent.getMetaModel();
+                    objectCreationExpr.getParentNode().ifPresent(parent -> {
+                        NodeMetaModel metaModel = parent.getMetaModel();
 
-                    if(metaModel.is(VariableDeclarator.class)){
-                        VariableDeclarator variableDeclarator = (VariableDeclarator) parent;
-                        String arg = objectCreationExpr.getArguments().toString();
+                        if(metaModel.is(VariableDeclarator.class)){
+                            VariableDeclarator variableDeclarator = (VariableDeclarator) parent;
+                            String arg = objectCreationExpr.getArguments().toString();
 
-                        variableDeclarator.setType(two)
-                                .setInitializer("new "+two+"("+arg.substring(1, arg.length() - 1)+")");
-                    }else if(metaModel.is(AssignExpr.class)){
-                        AssignExpr assignExpr = (AssignExpr) parent;
+                            variableDeclarator.setType(two)
+                                    .setInitializer("new "+two+"("+arg.substring(1, arg.length() - 1)+")");
+                        }else if(metaModel.is(AssignExpr.class)){
+                            AssignExpr assignExpr = (AssignExpr) parent;
 
-                        c.findAll(VariableDeclarator.class, v ->
-                            v.getNameAsString().equals(assignExpr.getTarget().toString())
-                        ).forEach(v -> {
-                            v.setType(two);
-                            assignExpr.setValue(
-                                    new ObjectCreationExpr()
-                                            .setType(two)
-                                            .setArguments(objectCreationExpr.getArguments())
-                            );
-                        });
-                    }else if(metaModel.is(MethodCallExpr.class)){
-                        objectCreationExpr.setType(two);
-                    }
+                            c.findAll(VariableDeclarator.class, v ->
+                                    v.getNameAsString().equals(assignExpr.getTarget().toString())
+                            ).forEach(v -> {
+                                v.setType(two);
+                                assignExpr.setValue(
+                                        new ObjectCreationExpr()
+                                                .setType(two)
+                                                .setArguments(objectCreationExpr.getArguments())
+                                );
+                            });
+                        }else if(metaModel.is(MethodCallExpr.class)){
+                            objectCreationExpr.setType(two);
+                        }
+                    });
                 }
             });
         });
