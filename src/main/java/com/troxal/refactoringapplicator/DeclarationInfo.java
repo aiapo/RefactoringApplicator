@@ -16,7 +16,7 @@ public class DeclarationInfo<T extends CallableDeclaration<?>> {
     @Getter
     private List<String> methods = new ArrayList<>();
 
-    public DeclarationInfo(CallableDeclaration declaration){
+    public DeclarationInfo(CallableDeclaration<T> declaration){
         this.declaration = declaration;
     }
 
