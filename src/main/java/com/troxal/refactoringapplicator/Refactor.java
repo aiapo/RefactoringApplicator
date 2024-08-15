@@ -10,10 +10,7 @@ import com.github.javaparser.ast.stmt.BlockStmt;
 import com.github.javaparser.ast.stmt.ReturnStmt;
 import org.springframework.cglib.core.Block;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static com.github.javaparser.ast.Modifier.Keyword.PUBLIC;
@@ -26,7 +23,7 @@ public class Refactor {
     }
 
     public void findFieldAndRefactorContext(ClassOrInterfaceDeclaration cOne, ClassOrInterfaceDeclaration cTwo,
-                                            String field) {
+                                            String field, List<ClassOrInterfaceDeclaration> res) {
         findContextRefactoring(findCalledFieldsAndMethods(cOne),field);
         for (Map.Entry<String, String> refactorThis : context.entrySet()) {
             if(refactorThis.getValue().equals("field")){
@@ -76,6 +73,8 @@ public class Refactor {
                 }
             }
         }
+
+        findAndUpdateInstancesOfClassOne(cOne.getNameAsString(),cTwo.getNameAsString(),res);
     }
 
     public void findFieldAndRefactorContextless(String field,
@@ -291,6 +290,40 @@ public class Refactor {
                 break;
             }
         }
+    }
+
+    private void findAndUpdateInstancesOfClassOne(String one, String two, List<ClassOrInterfaceDeclaration> res){
+        res.stream().filter(c -> !c.isInterface() && !c.getNameAsString().equals(one)
+                && !c.getNameAsString().equals(two)).forEach(c -> {
+            c.findAll(ObjectCreationExpr.class).forEach(expression -> {
+                if(expression.asObjectCreationExpr().getType().toString().equals(one)) {
+                    switch(expression.getParentNode().get().getMetaModel().toString()){
+                        case "VariableDeclarator":
+                            VariableDeclarator variableDeclarator =
+                                    (VariableDeclarator) expression.getParentNode().get();
+                            String arg = expression.asObjectCreationExpr().getArguments().toString();
+                            variableDeclarator.setType(two).setInitializer("new "+two+"("+arg.substring(1,
+                                    arg.length() - 1)+")");
+                            break;
+                        case "AssignExpr":
+                            AssignExpr assignExpr = (AssignExpr) expression.getParentNode().get();
+                            c.findAll(VariableDeclarator.class, v ->
+                                    v.getNameAsString().equals(assignExpr.getTarget().toString())).forEach(v -> {
+                                v.setType(two);
+                                assignExpr.setValue(
+                                        new ObjectCreationExpr()
+                                                .setType(two)
+                                                .setArguments(expression.asObjectCreationExpr().getArguments())
+                                );
+                            });
+                            break;
+                        case "MethodCallExpr":
+                            expression.asObjectCreationExpr().setType(two);
+                            break;
+                    }
+                }
+            });
+        });
     }
 
     private int methodAlreadyAdded(List<MethodInfo> methods, MethodDeclaration method){

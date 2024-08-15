@@ -235,7 +235,7 @@ public class Controller {
                         if (cOne.getFieldByName(field).isPresent()) {
                             // If the user wants context-ful refactoring or not
                             if(context)
-                                refactoring.findFieldAndRefactorContext(cOne, cTwo, field);
+                                refactoring.findFieldAndRefactorContext(cOne, cTwo, field, res);
                             else
                                 refactoring.findFieldAndRefactorContextless(field,cTemp,cOne,cTwo,cField,allCus);
                         } else {
