@@ -13,6 +13,7 @@ import com.github.javaparser.metamodel.NodeMetaModel;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static com.github.javaparser.ast.Modifier.Keyword.PUBLIC;
@@ -28,25 +29,28 @@ public class Refactor {
                                             String field, List<ClassOrInterfaceDeclaration> res) {
         findContextRefactoring(findCalledFieldsAndMethods(cOne),field);
         for (Map.Entry<String, String> refactorThis : context.entrySet()) {
-            if(refactorThis.getValue().equals("field")){
-                if(cOne.getFieldByName(refactorThis.getKey()).isPresent()){
-                    cTwo.addMember(cOne.getFieldByName(refactorThis.getKey()).get());
-                    cOne.remove(cOne.getFieldByName(refactorThis.getKey()).get());
+            String type = refactorThis.getValue();
+            String toRefactor = refactorThis.getKey();
+
+            if(type.equals("field")){
+                if(cOne.getFieldByName(toRefactor).isPresent()){
+                    cTwo.addMember(cOne.getFieldByName(toRefactor).get());
+                    cOne.remove(cOne.getFieldByName(toRefactor).get());
                 }
-            }else if (refactorThis.getValue().equals("method")){
-                 if(!cOne.getMethodsByName(refactorThis.getKey()).isEmpty()){
-                     cOne.getMethodsByName(refactorThis.getKey()).forEach(m -> {
+            }else if (type.equals("method")){
+                 if(!cOne.getMethodsByName(toRefactor).isEmpty()){
+                     cOne.getMethodsByName(toRefactor).forEach(m -> {
                          cTwo.addMember(m);
                          cOne.remove(m);
                      });
                  }
-            }else if(refactorThis.getValue().equals("constructor")){
-                if(cOne.getConstructors().stream().anyMatch(c ->
-                        c.getParameters().toString().equals(refactorThis.getKey()))){
-                    ConstructorDeclaration constructorOne =
-                            cOne.getConstructors().stream().filter(c ->
-                                    c.getParameters().toString().equals(refactorThis.getKey())).findFirst().get();
+            }else if(type.equals("constructor")){
+                Optional<ConstructorDeclaration> constructorOneOpt = cOne.getConstructors().stream().filter(
+                        c -> c.getParameters().toString().equals(toRefactor)
+                ).findFirst();
 
+                if(constructorOneOpt.isPresent()){
+                    ConstructorDeclaration constructorOne = constructorOneOpt.get();
                     ConstructorDeclaration constructorTwo = new ConstructorDeclaration(cTwo.getNameAsString());
 
                     BlockStmt bS = new BlockStmt();
@@ -68,6 +72,7 @@ public class Refactor {
                             }
                         }
                     });
+
                     constructorTwo.setBody(bS);
                     constructorTwo.setPublic(true);
                     constructorTwo.setParameters(parameters);
@@ -431,7 +436,8 @@ public class Refactor {
                 if(metaModel.is(FieldAccessExpr.class)){
                     FieldAccessExpr fieldAccessExpr = expression.asFieldAccessExpr();
 
-                    if(fieldAccessExpr.getScope().toString().equals("this")){
+                    // In this case only this is relevant for now (in class)
+                    if(fieldAccessExpr.getScope().isThisExpr()){
                         addToMethods(cI.getMethods(), expression, method, parent, fieldAccessExpr.getNameAsString());
                     }
                 }else if(metaModel.is(NameExpr.class)){
