@@ -2,24 +2,26 @@ package com.troxal.refactoringapplicator;
 
 import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.ImportDeclaration;
-import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
-import com.github.javaparser.ast.body.FieldDeclaration;
-import com.github.javaparser.ast.body.MethodDeclaration;
-import com.github.javaparser.ast.body.VariableDeclarator;
+import com.github.javaparser.ast.Node;
+import com.github.javaparser.ast.NodeList;
+import com.github.javaparser.ast.body.*;
 import com.github.javaparser.ast.expr.*;
 import com.github.javaparser.ast.stmt.BlockStmt;
 import com.github.javaparser.ast.stmt.ReturnStmt;
+import org.springframework.cglib.core.Block;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static com.github.javaparser.ast.Modifier.Keyword.PUBLIC;
 import static com.github.javaparser.ast.expr.UnaryExpr.Operator.*;
 
 public class Refactor {
     Map<String,String> context = new HashMap<>();
+
     public Refactor(){
     }
 
@@ -39,6 +41,39 @@ public class Refactor {
                          cOne.remove(m);
                      });
                  }
+            }else if(refactorThis.getValue().equals("constructor")){
+                if(cOne.getConstructors().stream().anyMatch(c ->
+                        c.getParameters().toString().equals(refactorThis.getKey()))){
+                    ConstructorDeclaration constructorOne =
+                            cOne.getConstructors().stream().filter(c ->
+                                    c.getParameters().toString().equals(refactorThis.getKey())).findFirst().get();
+
+                    ConstructorDeclaration constructorTwo = new ConstructorDeclaration(cTwo.getNameAsString());
+
+                    BlockStmt bS = new BlockStmt();
+                    NodeList<Parameter> parameters = new NodeList<>();
+                    constructorOne.findAll(Expression.class).forEach(expression -> {
+                        for(Map.Entry<String, String> con : context.entrySet()){
+                            if(con.getValue().equals("field")||con.getValue().equals("method")){
+                                if(expression.toString().equals(con.getKey())){
+                                    for(Parameter para : constructorOne.getParameters()){
+                                        if(expression.toString().equals(para.getName().toString())
+                                                &&!parameters.contains(para)){
+                                            parameters.add(para);
+                                        }
+                                    }
+                                    constructorOne.getParameters().removeIf(parameters::contains);
+                                    bS.addStatement(expression.getParentNode().get()+";");
+                                    expression.getParentNode().get().removeForced();
+                                }
+                            }
+                        }
+                    });
+                    constructorTwo.setBody(bS);
+                    constructorTwo.setPublic(true);
+                    constructorTwo.setParameters(parameters);
+                    cTwo.addMember(constructorTwo);
+                }
             }
         }
     }
@@ -268,181 +303,194 @@ public class Refactor {
         return -1;
     }
 
-    private List<MethodInfo> findCalledFieldsAndMethods(ClassOrInterfaceDeclaration cOne){
-        List<MethodInfo> methods = new ArrayList<>();
-
-        // For each method in class one
-        cOne.findAll(MethodDeclaration.class).forEach(methodDeclaration -> {
-            // Find all instances of declaring a field (i.e. `String a = b;`)
-            methodDeclaration.findAll(VariableDeclarationExpr.class).forEach(variableDeclaration -> {
-                MethodInfo m = new MethodInfo(methodDeclaration);
-                variableDeclaration.findAll(VariableDeclarator.class).forEach(fieldAccessExpr -> {
-                    if (fieldAccessExpr.getInitializer().isPresent()) {
-                        int methodIndex = methodAlreadyAdded(methods,methodDeclaration);
-                        if(methodIndex!=-1)
-                            methods.get(methodIndex).addField(fieldAccessExpr.getNameAsString()+"="+
-                                            fieldAccessExpr.getInitializer().get(),
-                                    "variableDeclarationExpr");
-                        else
-                            m.addField(fieldAccessExpr.getNameAsString()+"="+
-                                    fieldAccessExpr.getInitializer().get(),"variableDeclarationExpr");
-                    }
-                });
-                if(!m.getFields().isEmpty())
-                    methods.add(m);
-            });
-
-            // Find all instances of assigning a field (i.e. `refactoredField = 0`)
-            methodDeclaration.findAll(AssignExpr.class).forEach(assignExpr -> {
-                MethodInfo m = new MethodInfo(methodDeclaration);
-                assignExpr.findAll(FieldAccessExpr.class).forEach(fieldAccessExpr -> {
-                    int methodIndex = methodAlreadyAdded(methods,methodDeclaration);
-                    if(methodIndex!=-1){
-                        if (assignExpr.getValue().toString().contains("\"")) {
-                            methods.get(methodIndex).addField(fieldAccessExpr.getName().toString(),"assignExpr-fAE");
-                        } else {
-                            if(assignExpr.getValue().toString().split(" ").length>1)
-                                methods.get(methodIndex).addField(assignExpr.getValue().toString().split(" ")[1],"assignExpr-FAEaE");
-                            else
-                                methods.get(methodIndex).addField(assignExpr.getValue().toString(),"assignExpr-FAEaE");
-                        }
-                    }else{
-                        if (assignExpr.getValue().toString().contains("\"")) {
-                            m.addField(fieldAccessExpr.getName().toString(),"assignExpr-fAE");
-                        } else {
-                            if(assignExpr.getValue().toString().split(" ").length>1)
-                                m.addField(assignExpr.getValue().toString().split(" ")[1],
-                                        "assignExpr-FAEaE");
-                            else
-                                m.addField(assignExpr.getValue().toString(),"assignExpr-FAEaE");
-                        }
-                    }
-                });
-                assignExpr.findAll(NameExpr.class).forEach(nameExpr -> {
-                    int methodIndex = methodAlreadyAdded(methods,methodDeclaration);
-                    if(methodIndex!=-1){
-                        if (assignExpr.getValue().toString().contains("\"")) {
-                            methods.get(methodIndex).addField(nameExpr.getNameAsString(),"assignExpr-nE");
-                        } else {
-                            if(assignExpr.getValue().toString().split(" ").length>1)
-                                methods.get(methodIndex).addField(assignExpr.getValue().toString().split(" ")[1],"assignExpr-NEaE");
-                            else
-                                methods.get(methodIndex).addField(assignExpr.getValue().toString(),"assignExpr-NEaE");
-                        }
-                    }else{
-                        if (assignExpr.getValue().toString().contains("\"")) {
-                            m.addField(nameExpr.getNameAsString(),"assignExpr-nE");
-                        } else {
-                            if(assignExpr.getValue().toString().split(" ").length>1)
-                                m.addField(assignExpr.getValue().toString().split(" ")[1],"assignExpr-NEaE");
-                            else
-                                m.addField(assignExpr.getValue().toString(),"assignExpr-NEaE");
-                        }
-                    }
-                });
-                if(!m.getFields().isEmpty())
-                    methods.add(m);
-            });
-
-            // Find all instances of using a field within a method (i.e. `a(refactoredField);`)
-            methodDeclaration.findAll(MethodCallExpr.class).forEach(methodCallExpr -> {
-                MethodInfo m = new MethodInfo(methodDeclaration);
-                methodCallExpr.getArguments().forEach(arg -> {
-                    arg.findAll(FieldAccessExpr.class).forEach(fieldAccessExpr -> {
-                        int methodIndex = methodAlreadyAdded(methods,methodDeclaration);
-                        if(methodIndex!=-1)
-                            methods.get(methodIndex).addField(fieldAccessExpr.getNameAsString(),"methodCallExpr");
-                        else
-                            m.addField(fieldAccessExpr.getNameAsString(),"methodCallExpr");
-                    });
-                    arg.findAll(NameExpr.class).forEach(nameExpr -> {
-                        int methodIndex = methodAlreadyAdded(methods,methodDeclaration);
-                        if(methodIndex!=-1)
-                            methods.get(methodIndex).addField(nameExpr.getNameAsString(),"methodCallExpr");
-                        else
-                            m.addField(nameExpr.getNameAsString(),"methodCallExpr");
-                    });
-
-                });
-                if(methodCallExpr.getScope().isEmpty()){
-                    int methodIndex = methodAlreadyAdded(methods,methodDeclaration);
-                    if(methodIndex!=-1)
-                        methods.get(methodIndex).addMethod(methodCallExpr.getNameAsString());
-                    else
-                        m.addMethod(methodCallExpr.getNameAsString());
-                }
-                if(!m.getFields().isEmpty()||!m.getMethods().isEmpty())
-                    methods.add(m);
-            });
-
-            // Find all instances of returning the field (i.e. `return refactoredField;`)
-            methodDeclaration.findAll(ReturnStmt.class).forEach(returnStatement -> {
-                MethodInfo m = new MethodInfo(methodDeclaration);
-                returnStatement.findAll(FieldAccessExpr.class).forEach(fieldAccessExpr -> {
-                    int methodIndex = methodAlreadyAdded(methods,methodDeclaration);
-                    if(methodIndex!=-1)
-                        methods.get(methodIndex).addField(fieldAccessExpr.getNameAsString(),"returnStatement");
-                    else
-                        m.addField(fieldAccessExpr.getNameAsString(),"returnStatement");
-                });
-                returnStatement.findAll(NameExpr.class).forEach(nameExpr -> {
-                    int methodIndex = methodAlreadyAdded(methods,methodDeclaration);
-                    if(methodIndex!=-1)
-                        methods.get(methodIndex).addField(nameExpr.getNameAsString(),"returnStatement");
-                    else
-                        m.addField(nameExpr.getNameAsString(),"returnStatement");
-                });
-                if(!m.getFields().isEmpty())
-                    methods.add(m);
-            });
-
-            // Find all instances of unary expressions (i.e. `refactoredField++;)
-            methodDeclaration.findAll(UnaryExpr.class).forEach(unaryStatement -> {
-                MethodInfo m = new MethodInfo(methodDeclaration);
-                unaryStatement.findAll(FieldAccessExpr.class).forEach(fieldAccessExpr -> {
-                    m.addField(fieldAccessExpr.getNameAsString(),"UnaryExpr");
-                });
-                unaryStatement.findAll(NameExpr.class).forEach(nameExpr -> {
-                    m.addField(nameExpr.getNameAsString(),"UnaryExpr");
-                });
-                if(!m.getFields().isEmpty())
-                    methods.add(m);
-            });
-        });
-
-        return methods;
+    private int constructorAlreadyAdded(List<ConstructorInfo> constructors, ConstructorDeclaration constructor){
+        int count = 0;
+        for (ConstructorInfo c : constructors){
+            if(c.getConstructor().equals(constructor))
+                return count;
+            count++;
+        }
+        return -1;
     }
 
-    private void findContextRefactoring(List<MethodInfo> methods, String call){
-        for (MethodInfo method : methods){
+    private void addToMethods(List<MethodInfo> methods, Expression expression, MethodDeclaration method, Node parent,
+                              String name) {
+        String value = updateIfDeclaratorOrAssign(expression, parent, name);
+
+        MethodInfo m = new MethodInfo(method);
+        int methodIndex = methodAlreadyAdded(methods,method);
+        if(methodIndex!=-1)
+            methods.get(methodIndex).addField(value, parent.getMetaModel().toString());
+        else
+            m.addField(value, parent.getMetaModel().toString());
+
+        if(!m.getFields().isEmpty())
+            methods.add(m);
+    }
+
+
+    private void addToConstructors(List<ConstructorInfo> constructors, Expression expression,
+                                   ConstructorDeclaration constructor, Node parent, String name) {
+        String value = updateIfDeclaratorOrAssign(expression, parent, name);
+
+        ConstructorInfo c = new ConstructorInfo(constructor);
+        int constructorIndex = constructorAlreadyAdded(constructors,constructor);
+        if(constructorIndex!=-1)
+            constructors.get(constructorIndex).addField(value, parent.getMetaModel().toString());
+        else
+            c.addField(value, parent.getMetaModel().toString());
+
+        if(!c.getFields().isEmpty())
+            constructors.add(c);
+    }
+
+    private String updateIfDeclaratorOrAssign(Expression expression, Node parent, String name) {
+        AtomicReference<String> value = new AtomicReference<>(name);
+        if(parent.getMetaModel().toString().equals("VariableDeclarator")){
+            expression.findAncestor(VariableDeclarationExpr.class).ifPresent(c -> {
+                if (c.getVariable(0).getMetaModel().toString().equals("NameExpr")||
+                        c.getVariable(0).getMetaModel().toString().equals("FieldAccessExpr")) {
+                    if(c.getVariable(0).getInitializer().isPresent()){
+                        value.set(c.getVariable(0).getName()+"="+c.getVariable(0).getInitializer().get());
+                    }
+                }
+            });
+        }else if(parent.getMetaModel().toString().equals("AssignExpr")){
+            expression.findAncestor(AssignExpr.class).ifPresent(c -> {
+                if (c.getValue().getMetaModel().toString().equals("NameExpr")||
+                        c.getValue().getMetaModel().toString().equals("FieldAccessExpr")) {
+                    value.set(c.getTarget()+"="+c.getValue());
+                }
+            });
+        }
+        return value.get();
+    }
+
+    private ClassInfo findCalledFieldsAndMethods(ClassOrInterfaceDeclaration classOrInterfaceDeclaration){
+        ClassInfo cI = new ClassInfo(classOrInterfaceDeclaration);
+
+        classOrInterfaceDeclaration.findAll(Expression.class).forEach(expression -> {
+            MethodDeclaration method = null;
+            ConstructorDeclaration constructor = null;
+            String source = "";
+
+            if(expression.findAncestor(MethodDeclaration.class).isPresent()){
+                method = expression.findAncestor(MethodDeclaration.class).get();
+                source="Method";
+            }else {
+                if(expression.findAncestor(ConstructorDeclaration.class).isPresent()){
+                    constructor = expression.findAncestor(ConstructorDeclaration.class).get();
+                    source="Constructor";
+                }
+            }
+
+            if(method!=null){
+                Node parent = expression.getParentNode().get();
+                switch(expression.getMetaModel().toString()) {
+                    case "FieldAccessExpr":
+                        if(expression.asFieldAccessExpr().getScope().toString().equals("this")){
+                            addToMethods(cI.getMethods(), expression, method, parent,
+                                    expression.asFieldAccessExpr().getNameAsString());
+                        }
+                        break;
+                    case "NameExpr":
+                        if(!expression.getParentNode().get().getMetaModel().toString().equals("FieldAccessExpr")){
+                            addToMethods(cI.getMethods(), expression, method, parent,
+                                    expression.asNameExpr().getNameAsString());
+                        }
+                        break;
+                    case "MethodCallExpr":
+                        if(expression.asMethodCallExpr().getScope().isEmpty()){
+                            MethodInfo m = new MethodInfo(method);
+                            int methodIndex = methodAlreadyAdded(cI.getMethods(),method);
+                            if(methodIndex!=-1)
+                                cI.getMethods().get(methodIndex).addMethod(expression.asMethodCallExpr().getNameAsString());
+                            else
+                                m.addMethod(expression.asMethodCallExpr().getNameAsString());
+
+                            if(!m.getFields().isEmpty())
+                                cI.getMethods().add(m);
+                        }
+                    default:
+                }
+            }else if(constructor!=null){
+                Node parent = expression.getParentNode().get();
+                switch(expression.getMetaModel().toString()) {
+                    case "FieldAccessExpr":
+                        if(expression.asFieldAccessExpr().getScope().toString().equals("this")){
+                            addToConstructors(cI.getConstructors(), expression, constructor, parent,
+                                    expression.asFieldAccessExpr().getNameAsString());
+                        }
+                        break;
+                    case "NameExpr":
+                        if(!expression.getParentNode().get().getMetaModel().toString().equals("FieldAccessExpr")){
+                            addToConstructors(cI.getConstructors(), expression, constructor, parent,
+                                    expression.asNameExpr().getNameAsString());
+                        }
+                        break;
+                    case "MethodCallExpr":
+                        if(expression.asMethodCallExpr().getScope().isEmpty()){
+                            ConstructorInfo c = new ConstructorInfo(constructor);
+                            int constructorIndex = constructorAlreadyAdded(cI.getConstructors(),constructor);
+                            if(constructorIndex!=-1)
+                                cI.getConstructors().get(constructorIndex)
+                                        .addMethod(expression.asMethodCallExpr().getNameAsString());
+                            else
+                                c.addMethod(expression.asMethodCallExpr().getNameAsString());
+
+                            if(!c.getFields().isEmpty())
+                                cI.getConstructors().add(c);
+                        }
+                    default:
+                }
+            }
+        });
+
+        return cI;
+    }
+
+    private void findContextRefactoring(ClassInfo cI, String call){
+        for (MethodInfo method : cI.getMethods()){
             if(method.getFields().containsKey(call)||method.getMethods().contains(call)){
                 for (Map.Entry<String, String> f : method.getFields().entrySet()) {
                     if(!context.containsKey(f.getKey())){
                         context.put(f.getKey(),"field");
-                        findContextRefactoring(methods,f.getKey());
+                        findContextRefactoring(cI,f.getKey());
                     }
                 }
                 for (String m : method.getMethods()) {
                     if(!context.containsKey(m)){
                         context.put(m,"method");
-                        findContextRefactoring(methods,m);
+                        findContextRefactoring(cI,m);
                     }
                 }
                 if(!context.containsKey(method.getMethod().getNameAsString())){
                     context.put(method.getMethod().getNameAsString(),"method");
-                    findContextRefactoring(methods,method.getMethod().getNameAsString());
+                    findContextRefactoring(cI,method.getMethod().getNameAsString());
                 }
             }
 
-            if(method.getFields().containsValue("variableDeclarationExpr")){
+            if(method.getFields().containsValue("VariableDeclarator")||method.getFields().containsValue("AssignExpr")){
                 for (Map.Entry<String, String> f : method.getFields().entrySet()) {
-                    if(f.getValue().equals("variableDeclarationExpr")){
-                        if(f.getKey().split("=")[1].equals(call)){
-                            context.put(f.getKey().split("=")[0],"field");
+                    if(f.getValue().equals("VariableDeclarator")||f.getValue().equals("AssignExpr")){
+                        if(f.getKey().contains("=")){
+                            String[] a = f.getKey().split("=");
+                            if(a[1].equals(call)){
+                                context.put(a[0],"field");
+                                findContextRefactoring(cI,a[0]);
+                            }
                         }
                     }
                 }
             }
+        }
+
+        for(ConstructorInfo constructor : cI.getConstructors()){
+            if(!context.containsKey(constructor.getConstructor().getParameters().toString())){
+                if(constructor.getMethods().contains(call)||constructor.getFields().containsKey(call))
+                    context.put(constructor.getConstructor().getParameters().toString(),"constructor");
+            }
+
         }
     }
 
