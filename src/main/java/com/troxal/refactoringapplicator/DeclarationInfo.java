@@ -1,24 +1,23 @@
 package com.troxal.refactoringapplicator;
 
-import com.github.javaparser.ast.body.MethodDeclaration;
+import com.github.javaparser.ast.body.CallableDeclaration;
 import lombok.Getter;
-import lombok.Setter;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class MethodInfo {
+public class DeclarationInfo<T extends CallableDeclaration<?>> {
     @Getter
-    private MethodDeclaration method;
+    private CallableDeclaration<T> declaration;
     @Getter
     private Map<String,String> fields = new HashMap<>();
     @Getter
     private List<String> methods = new ArrayList<>();
 
-    public MethodInfo(MethodDeclaration method){
-        this.method = method;
+    public DeclarationInfo(CallableDeclaration declaration){
+        this.declaration = declaration;
     }
 
     public void addField(String field, String source){

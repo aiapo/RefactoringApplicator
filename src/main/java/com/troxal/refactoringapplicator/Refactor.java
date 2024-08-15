@@ -335,55 +335,32 @@ public class Refactor {
         });
     }
 
-    private int methodAlreadyAdded(List<MethodInfo> methods, MethodDeclaration method){
+    private <T extends CallableDeclaration<?>> int alreadyAdded(List<DeclarationInfo<T>> declarations,
+                                                                CallableDeclaration<T> declaration){
         int count = 0;
-        for (MethodInfo m : methods){
-            if(m.getMethod().equals(method))
+        for (DeclarationInfo<T> c : declarations){
+            if(c.getDeclaration().equals(declaration))
                 return count;
             count++;
         }
         return -1;
     }
 
-    private int constructorAlreadyAdded(List<ConstructorInfo> constructors, ConstructorDeclaration constructor){
-        int count = 0;
-        for (ConstructorInfo c : constructors){
-            if(c.getConstructor().equals(constructor))
-                return count;
-            count++;
-        }
-        return -1;
-    }
-
-    private void addToMethods(List<MethodInfo> methods, Expression expression, MethodDeclaration method, Node parent,
-                              String name) {
+    private <T extends CallableDeclaration<?>> void addToDeclarations(List<DeclarationInfo<T>> declarations,
+                                                                      Expression expression,
+                                                                      CallableDeclaration<T> declaration, Node parent,
+                                                                      String name) {
         String value = updateIfDeclaratorOrAssign(expression, parent, name);
 
-        MethodInfo m = new MethodInfo(method);
-        int methodIndex = methodAlreadyAdded(methods,method);
-        if(methodIndex!=-1)
-            methods.get(methodIndex).addField(value, parent.getMetaModel().toString());
+        DeclarationInfo<T> d = new DeclarationInfo<>(declaration);
+        int declarationIndex = alreadyAdded(declarations,declaration);
+        if(declarationIndex!=-1)
+            declarations.get(declarationIndex).addField(value, parent.getMetaModel().toString());
         else
-            m.addField(value, parent.getMetaModel().toString());
+            d.addField(value, parent.getMetaModel().toString());
 
-        if(!m.getFields().isEmpty())
-            methods.add(m);
-    }
-
-
-    private void addToConstructors(List<ConstructorInfo> constructors, Expression expression,
-                                   ConstructorDeclaration constructor, Node parent, String name) {
-        String value = updateIfDeclaratorOrAssign(expression, parent, name);
-
-        ConstructorInfo c = new ConstructorInfo(constructor);
-        int constructorIndex = constructorAlreadyAdded(constructors,constructor);
-        if(constructorIndex!=-1)
-            constructors.get(constructorIndex).addField(value, parent.getMetaModel().toString());
-        else
-            c.addField(value, parent.getMetaModel().toString());
-
-        if(!c.getFields().isEmpty())
-            constructors.add(c);
+        if(!d.getFields().isEmpty())
+            declarations.add(d);
     }
 
     private String updateIfDeclaratorOrAssign(Expression expression, Node parent, String name) {
@@ -438,20 +415,20 @@ public class Refactor {
 
                     // In this case only this is relevant for now (in class)
                     if(fieldAccessExpr.getScope().isThisExpr()){
-                        addToMethods(cI.getMethods(), expression, method, parent, fieldAccessExpr.getNameAsString());
+                        addToDeclarations(cI.getMethods(),expression,method,parent,fieldAccessExpr.getNameAsString());
                     }
                 }else if(metaModel.is(NameExpr.class)){
                     if(!parentMetaModel.is(FieldAccessExpr.class)){
                         NameExpr nameExpr = expression.asNameExpr();
 
-                        addToMethods(cI.getMethods(), expression, method, parent, nameExpr.getNameAsString());
+                        addToDeclarations(cI.getMethods(), expression, method, parent, nameExpr.getNameAsString());
                     }
                 }else if(metaModel.is(MethodCallExpr.class)){
                     MethodCallExpr methodCallExpr = expression.asMethodCallExpr();
 
                     if(methodCallExpr.getScope().isEmpty()){
-                        MethodInfo m = new MethodInfo(method);
-                        int methodIndex = methodAlreadyAdded(cI.getMethods(),method);
+                        DeclarationInfo<MethodDeclaration> m = new DeclarationInfo<>(method);
+                        int methodIndex = alreadyAdded(cI.getMethods(),method);
 
                         if(methodIndex!=-1)
                             cI.getMethods().get(methodIndex).addMethod(methodCallExpr.getNameAsString());
@@ -471,22 +448,22 @@ public class Refactor {
                     FieldAccessExpr fieldAccessExpr = expression.asFieldAccessExpr();
 
                     if(fieldAccessExpr.getScope().toString().equals("this")){
-                        addToConstructors(cI.getConstructors(), expression, constructor, parent,
+                        addToDeclarations(cI.getConstructors(), expression, constructor, parent,
                                 fieldAccessExpr.getNameAsString());
                     }
                 }else if(metaModel.is(NameExpr.class)){
                     NameExpr nameExpr = expression.asNameExpr();
 
                     if(!parentMetaModel.is(FieldAccessExpr.class)){
-                        addToConstructors(cI.getConstructors(), expression, constructor, parent,
+                        addToDeclarations(cI.getConstructors(), expression, constructor, parent,
                                 nameExpr.getNameAsString());
                     }
                 }else if(metaModel.is(MethodCallExpr.class)){
                     MethodCallExpr methodCallExpr = expression.asMethodCallExpr();
 
                     if(methodCallExpr.getScope().isEmpty()){
-                        ConstructorInfo c = new ConstructorInfo(constructor);
-                        int constructorIndex = constructorAlreadyAdded(cI.getConstructors(),constructor);
+                        DeclarationInfo<ConstructorDeclaration> c = new DeclarationInfo<>(constructor);
+                        int constructorIndex = alreadyAdded(cI.getConstructors(),constructor);
                         if(constructorIndex!=-1)
                             cI.getConstructors().get(constructorIndex).addMethod(methodCallExpr.getNameAsString());
                         else
@@ -503,7 +480,7 @@ public class Refactor {
     }
 
     private void findContextRefactoring(ClassInfo cI, String call){
-        for (MethodInfo method : cI.getMethods()){
+        for (DeclarationInfo<MethodDeclaration> method : cI.getMethods()){
             if(method.getFields().containsKey(call) || method.getMethods().contains(call)){
                 for (Map.Entry<String, String> f : method.getFields().entrySet()) {
                     if(!context.containsKey(f.getKey())){
@@ -517,9 +494,9 @@ public class Refactor {
                         findContextRefactoring(cI,m);
                     }
                 }
-                if(!context.containsKey(method.getMethod().getNameAsString())){
-                    context.put(method.getMethod().getNameAsString(),"method");
-                    findContextRefactoring(cI,method.getMethod().getNameAsString());
+                if(!context.containsKey(method.getDeclaration().getNameAsString())){
+                    context.put(method.getDeclaration().getNameAsString(),"method");
+                    findContextRefactoring(cI,method.getDeclaration().getNameAsString());
                 }
             }
 
@@ -538,10 +515,10 @@ public class Refactor {
             }
         }
 
-        for(ConstructorInfo constructor : cI.getConstructors()){
-            if(!context.containsKey(constructor.getConstructor().getParameters().toString())){
+        for(DeclarationInfo<ConstructorDeclaration> constructor : cI.getConstructors()){
+            if(!context.containsKey(constructor.getDeclaration().getParameters().toString())){
                 if(constructor.getMethods().contains(call)||constructor.getFields().containsKey(call))
-                    context.put(constructor.getConstructor().getParameters().toString(),"constructor");
+                    context.put(constructor.getDeclaration().getParameters().toString(),"constructor");
             }
 
         }
