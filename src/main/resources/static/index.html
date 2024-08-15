@@ -89,8 +89,6 @@
         integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
         crossorigin="anonymous"></script>
 <script type="text/javascript" src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-<script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
-<script type="text/javascript" src="https://unpkg.com/alea@1.0.0/alea.js"></script>
 <script src="https://bumbu.me/svg-pan-zoom/dist/svg-pan-zoom.min.js"></script>
 <script src=" https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js "></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
@@ -224,15 +222,15 @@
         bodyData.append("class", $('#classTwoField').val());
 
         Swal.fire({
-            title: "Contextual or Contextless Refactoring?",
+            title: "Context-aware or Contextless Refactoring?",
             icon: "question",
             html:
-                `<p><strong>Contextual Refactoring</strong> means any referenced fields and called methods will be moved automatically.</p>
+                `<p><strong>Context-aware Refactoring</strong> means any referenced fields and called methods will be moved automatically.</p>
                    <p><strong>Contextless Refactoring</strong> means only the field will be moved, and any references to the field will
                     be changed to accessing an object.</p>`,
             showDenyButton: true,
             showCancelButton: true,
-            confirmButtonText: "Contextual",
+            confirmButtonText: "Context-aware",
             denyButtonText: "Contextless",
             confirmButtonColor: "#198754",
         }).then((result) => {
