@@ -9,6 +9,8 @@ import com.github.javaparser.ast.expr.*;
 import com.github.javaparser.ast.stmt.BlockStmt;
 import com.github.javaparser.ast.stmt.ReturnStmt;
 import com.github.javaparser.metamodel.NodeMetaModel;
+import com.troxal.refactoringapplicator.Info.ClassInfo;
+import com.troxal.refactoringapplicator.Info.DeclarationInfo;
 
 import java.util.HashMap;
 import java.util.List;

@@ -1,4 +1,4 @@
-package com.troxal.refactoringapplicator;
+package com.troxal.refactoringapplicator.Info;
 
 import com.github.javaparser.ast.body.CallableDeclaration;
 import lombok.Getter;
