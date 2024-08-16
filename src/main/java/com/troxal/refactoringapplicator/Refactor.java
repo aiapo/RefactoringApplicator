@@ -407,19 +407,12 @@ public class Refactor {
         ClassInfo cI = new ClassInfo(classOrInterfaceDeclaration);
 
         classOrInterfaceDeclaration.findAll(Expression.class).forEach(expression -> {
-            MethodDeclaration method = null;
-            ConstructorDeclaration constructor = null;
+            Node parent = expression.getParentNode().get();
+            NodeMetaModel metaModel = expression.getMetaModel();
+            NodeMetaModel parentMetaModel = parent.getMetaModel();
 
             if(expression.findAncestor(MethodDeclaration.class).isPresent()){
-                method = expression.findAncestor(MethodDeclaration.class).get();
-            }else if(expression.findAncestor(ConstructorDeclaration.class).isPresent()) {
-                constructor = expression.findAncestor(ConstructorDeclaration.class).get();
-            }
-
-            if(method!=null){
-                Node parent = expression.getParentNode().get();
-                NodeMetaModel metaModel = expression.getMetaModel();
-                NodeMetaModel parentMetaModel = parent.getMetaModel();
+                MethodDeclaration method = expression.findAncestor(MethodDeclaration.class).get();
 
                 if(metaModel.is(FieldAccessExpr.class)){
                     FieldAccessExpr fieldAccessExpr = expression.asFieldAccessExpr();
@@ -450,15 +443,13 @@ public class Refactor {
                             cI.getMethods().add(m);
                     }
                 }
-            }else if(constructor!=null){
-                Node parent = expression.getParentNode().get();
-                NodeMetaModel metaModel = expression.getMetaModel();
-                NodeMetaModel parentMetaModel = parent.getMetaModel();
+            }else if(expression.findAncestor(ConstructorDeclaration.class).isPresent()) {
+                ConstructorDeclaration constructor = expression.findAncestor(ConstructorDeclaration.class).get();
 
                 if(metaModel.is(FieldAccessExpr.class)){
                     FieldAccessExpr fieldAccessExpr = expression.asFieldAccessExpr();
 
-                    if(fieldAccessExpr.getScope().toString().equals("this")){
+                    if(fieldAccessExpr.getScope().isThisExpr()){
                         addToDeclarations(cI.getConstructors(), expression, constructor, parent,
                                 fieldAccessExpr.getNameAsString());
                     }
