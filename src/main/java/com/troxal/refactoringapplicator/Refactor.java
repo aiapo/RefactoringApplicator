@@ -12,10 +12,7 @@ import com.github.javaparser.metamodel.NodeMetaModel;
 import com.troxal.refactoringapplicator.Info.ClassInfo;
 import com.troxal.refactoringapplicator.Info.DeclarationInfo;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static com.github.javaparser.ast.Modifier.Keyword.PUBLIC;
@@ -357,24 +354,10 @@ public class Refactor {
         return -1;
     }
 
-    private <T extends CallableDeclaration<?>> void addToDeclarations(List<DeclarationInfo<T>> declarations,
-                                                                      Expression expression,
-                                                                      CallableDeclaration<T> declaration, Node parent,
-                                                                      String name) {
-        String value = updateIfDeclaratorOrAssign(expression, parent, name);
-
-        DeclarationInfo<T> d = new DeclarationInfo<>(declaration);
-        int declarationIndex = alreadyAdded(declarations,declaration);
-        if(declarationIndex!=-1)
-            declarations.get(declarationIndex).addField(value, parent.getMetaModel().toString());
-        else
-            d.addField(value, parent.getMetaModel().toString());
-
-        if(!d.getFields().isEmpty())
-            declarations.add(d);
-    }
-
-    private String updateIfDeclaratorOrAssign(Expression expression, Node parent, String name) {
+    private <T extends CallableDeclaration<?>> void addFieldToDeclarations(List<DeclarationInfo<T>> declarations,
+                                                                           Expression expression,
+                                                                           CallableDeclaration<T> declaration, Node parent,
+                                                                           String name) {
         AtomicReference<String> value = new AtomicReference<>(name);
         NodeMetaModel parentMetaModel = parent.getMetaModel();
 
@@ -400,85 +383,82 @@ public class Refactor {
             });
         }
 
-        return value.get();
+        DeclarationInfo<T> d = new DeclarationInfo<>(declaration);
+        int declarationIndex = alreadyAdded(declarations,declaration);
+        if(declarationIndex!=-1)
+            declarations.get(declarationIndex).addField(value.get(), parent.getMetaModel().toString());
+        else
+            d.addField(value.get(), parent.getMetaModel().toString());
+
+        if(!d.getFields().isEmpty())
+            declarations.add(d);
+    }
+
+    private <T extends CallableDeclaration<?>> void addMethodToDeclarations(CallableDeclaration<T> declaration,
+                                                                            List<DeclarationInfo<T>> declarations,
+                                                                            String name) {
+        DeclarationInfo<T> d = new DeclarationInfo<>(declaration);
+        int declarationIndex = alreadyAdded(declarations, declaration);
+
+        if(declarationIndex!=-1)
+            declarations.get(declarationIndex).addMethod(name);
+        else
+            d.addMethod(name);
+
+        if(!d.getMethods().isEmpty())
+            declarations.add(d);
     }
 
     private ClassInfo findCalledFieldsAndMethods(ClassOrInterfaceDeclaration classOrInterfaceDeclaration){
-        ClassInfo cI = new ClassInfo(classOrInterfaceDeclaration);
+        List<DeclarationInfo<ConstructorDeclaration>> constructors = new ArrayList<>();
+        List<DeclarationInfo<MethodDeclaration>> methods = new ArrayList<>();
 
         classOrInterfaceDeclaration.findAll(Expression.class).forEach(expression -> {
             Node parent = expression.getParentNode().get();
             NodeMetaModel metaModel = expression.getMetaModel();
             NodeMetaModel parentMetaModel = parent.getMetaModel();
+            MethodDeclaration method = null;
+            ConstructorDeclaration constructor = null;
 
-            if(expression.findAncestor(MethodDeclaration.class).isPresent()){
-                MethodDeclaration method = expression.findAncestor(MethodDeclaration.class).get();
+            if(expression.findAncestor(MethodDeclaration.class).isPresent())
+                method = expression.findAncestor(MethodDeclaration.class).get();
+            else if(expression.findAncestor(ConstructorDeclaration.class).isPresent())
+                constructor = expression.findAncestor(ConstructorDeclaration.class).get();
 
-                if(metaModel.is(FieldAccessExpr.class)){
-                    FieldAccessExpr fieldAccessExpr = expression.asFieldAccessExpr();
+            if(metaModel.is(FieldAccessExpr.class)){
+                FieldAccessExpr fieldAccessExpr = expression.asFieldAccessExpr();
 
-                    // In this case only this is relevant for now (in class)
-                    if(fieldAccessExpr.getScope().isThisExpr()){
-                        addToDeclarations(cI.getMethods(),expression,method,parent,fieldAccessExpr.getNameAsString());
-                    }
-                }else if(metaModel.is(NameExpr.class)){
-                    if(!parentMetaModel.is(FieldAccessExpr.class)){
-                        NameExpr nameExpr = expression.asNameExpr();
-
-                        addToDeclarations(cI.getMethods(), expression, method, parent, nameExpr.getNameAsString());
-                    }
-                }else if(metaModel.is(MethodCallExpr.class)){
-                    MethodCallExpr methodCallExpr = expression.asMethodCallExpr();
-
-                    if(methodCallExpr.getScope().isEmpty()){
-                        DeclarationInfo<MethodDeclaration> m = new DeclarationInfo<>(method);
-                        int methodIndex = alreadyAdded(cI.getMethods(),method);
-
-                        if(methodIndex!=-1)
-                            cI.getMethods().get(methodIndex).addMethod(methodCallExpr.getNameAsString());
-                        else
-                            m.addMethod(methodCallExpr.getNameAsString());
-
-                        if(!m.getFields().isEmpty())
-                            cI.getMethods().add(m);
-                    }
-                }
-            }else if(expression.findAncestor(ConstructorDeclaration.class).isPresent()) {
-                ConstructorDeclaration constructor = expression.findAncestor(ConstructorDeclaration.class).get();
-
-                if(metaModel.is(FieldAccessExpr.class)){
-                    FieldAccessExpr fieldAccessExpr = expression.asFieldAccessExpr();
-
-                    if(fieldAccessExpr.getScope().isThisExpr()){
-                        addToDeclarations(cI.getConstructors(), expression, constructor, parent,
+                // In this case only this is relevant for now (in class)
+                if(fieldAccessExpr.getScope().isThisExpr()){
+                    if(method!=null)
+                        addFieldToDeclarations(methods,expression,method,parent,fieldAccessExpr.getNameAsString());
+                    else if(constructor!=null)
+                        addFieldToDeclarations(constructors, expression, constructor, parent,
                                 fieldAccessExpr.getNameAsString());
-                    }
-                }else if(metaModel.is(NameExpr.class)){
+                }
+            }else if(metaModel.is(NameExpr.class)){
+                if(!parentMetaModel.is(FieldAccessExpr.class)){
                     NameExpr nameExpr = expression.asNameExpr();
 
-                    if(!parentMetaModel.is(FieldAccessExpr.class)){
-                        addToDeclarations(cI.getConstructors(), expression, constructor, parent,
+                    if(method!=null)
+                        addFieldToDeclarations(methods, expression, method, parent, nameExpr.getNameAsString());
+                    else if(constructor!=null)
+                        addFieldToDeclarations(constructors, expression, constructor, parent,
                                 nameExpr.getNameAsString());
-                    }
-                }else if(metaModel.is(MethodCallExpr.class)){
-                    MethodCallExpr methodCallExpr = expression.asMethodCallExpr();
+                }
+            }else if(metaModel.is(MethodCallExpr.class)){
+                MethodCallExpr methodCallExpr = expression.asMethodCallExpr();
 
-                    if(methodCallExpr.getScope().isEmpty()){
-                        DeclarationInfo<ConstructorDeclaration> c = new DeclarationInfo<>(constructor);
-                        int constructorIndex = alreadyAdded(cI.getConstructors(),constructor);
-                        if(constructorIndex!=-1)
-                            cI.getConstructors().get(constructorIndex).addMethod(methodCallExpr.getNameAsString());
-                        else
-                            c.addMethod(methodCallExpr.getNameAsString());
-
-                        if(!c.getFields().isEmpty())
-                            cI.getConstructors().add(c);
-                    }
+                if(methodCallExpr.getScope().isEmpty()){
+                    if(method!=null)
+                        addMethodToDeclarations(method, methods, methodCallExpr.getNameAsString());
+                    else if(constructor!=null)
+                        addMethodToDeclarations(constructor, constructors, methodCallExpr.getNameAsString());
                 }
             }
         });
 
-        return cI;
+        return new ClassInfo(classOrInterfaceDeclaration,constructors,methods);
     }
 
     private void findContextRefactoring(ClassInfo cI, String call){

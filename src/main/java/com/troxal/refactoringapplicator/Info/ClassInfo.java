@@ -12,21 +12,15 @@ public class ClassInfo {
     @Getter
     private ClassOrInterfaceDeclaration classOrInterface;
     @Getter
-    private List<DeclarationInfo<ConstructorDeclaration>> constructors = new ArrayList<>();
+    private List<DeclarationInfo<ConstructorDeclaration>> constructors;
     @Getter
-    private List<DeclarationInfo<MethodDeclaration>> methods = new ArrayList<>();
+    private List<DeclarationInfo<MethodDeclaration>> methods;
 
-    public ClassInfo(ClassOrInterfaceDeclaration classOrInterface){
+    public ClassInfo(ClassOrInterfaceDeclaration classOrInterface,
+                     List<DeclarationInfo<ConstructorDeclaration>> constructors,
+                     List<DeclarationInfo<MethodDeclaration>> methods){
         this.classOrInterface = classOrInterface;
-    }
-
-    public void addConstructor(DeclarationInfo<ConstructorDeclaration> constructor){
-        if(!constructors.contains(constructor))
-            constructors.add(constructor);
-    }
-
-    public void addMethod(DeclarationInfo<MethodDeclaration> method){
-        if(!methods.contains(method))
-            methods.add(method);
+        this.constructors = constructors;
+        this.methods = methods;
     }
 }
