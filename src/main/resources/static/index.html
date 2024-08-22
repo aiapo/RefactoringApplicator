@@ -153,6 +153,7 @@
             .then((response) => response.json())
             .then((json) => {
                 if(json.status==="success"){
+                    $(".form-select").empty();
                     json.message.forEach(function (value) {
                         selectTwo = document.getElementById('classTwoField');
                         selectMTwo = document.getElementById('classTwoMethod');
@@ -222,16 +223,25 @@
         bodyData.append("class", $('#classTwoField').val());
 
         Swal.fire({
-            title: "Context-aware or Contextless Refactoring?",
+            title: "Aware or Direct Refactoring?",
             icon: "question",
             html:
-                `<p><strong>Context-aware Refactoring</strong> means any referenced fields and called methods will be moved automatically.</p>
-                   <p><strong>Contextless Refactoring</strong> means only the field will be moved, and any references to the field will
-                    be changed to accessing an object.</p>`,
+                `<p>
+                    <strong>Aware Refactoring</strong> means any referenced fields and called methods will
+                    be moved automatically.
+                    <br>
+                    <em>Example: If FIELD is referenced in method1, and method2, and method2 also references field2,
+                    which is referenced in method3 then FIELD, field2, method1, method2, method3 will all be moved.</em>
+                 </p>
+                 <hr>
+                 <p>
+                    <strong>Direct Refactoring</strong> means only the field will be moved, and any references to the
+                    field will be changed to accessing an object.
+                 </p>`,
             showDenyButton: true,
             showCancelButton: true,
-            confirmButtonText: "Context-aware",
-            denyButtonText: "Contextless",
+            confirmButtonText: "Aware",
+            denyButtonText: "Direct",
             confirmButtonColor: "#198754",
         }).then((result) => {
             /* Read more about isConfirmed, isDenied below */
