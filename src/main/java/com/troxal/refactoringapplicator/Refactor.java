@@ -20,13 +20,23 @@ import static com.github.javaparser.ast.expr.UnaryExpr.Operator.*;
 
 public class Refactor {
     Map<String,String> context = new HashMap<>();
+    ClassOrInterfaceDeclaration cOne;
+    ClassOrInterfaceDeclaration cTwo;
+    String call;
+    List<ClassOrInterfaceDeclaration> res;
+    List<CompilationUnit> allCus;
 
-    public Refactor(){
+    public Refactor(ClassOrInterfaceDeclaration cOne, ClassOrInterfaceDeclaration cTwo,
+                    String call, List<ClassOrInterfaceDeclaration> res,List<CompilationUnit> allCus){
+        this.cOne=cOne;
+        this.cTwo=cTwo;
+        this.call = call;
+        this.res = res;
+        this.allCus = allCus;
     }
 
-    public void findFieldAndRefactorContext(ClassOrInterfaceDeclaration cOne, ClassOrInterfaceDeclaration cTwo,
-                                            String field, List<ClassOrInterfaceDeclaration> res) {
-        findContextRefactoring(findCalledFieldsAndMethods(cOne),field);
+    public void findFieldAndRefactorContext() {
+        findContextRefactoring(findCalledFieldsAndMethods(cOne),call);
         for (Map.Entry<String, String> refactorThis : context.entrySet()) {
             String type = refactorThis.getValue();
             String toRefactor = refactorThis.getKey();
@@ -85,12 +95,12 @@ public class Refactor {
         findAndUpdateInstancesOfClassOne(cOne.getNameAsString(),cTwo.getNameAsString(),res);
     }
 
-    public void findFieldAndRefactorContextless(String field,
-                                                ClassOrInterfaceDeclaration cTemp, ClassOrInterfaceDeclaration cOne,
-                                                ClassOrInterfaceDeclaration cTwo, FieldDeclaration cField,
-                                                List<CompilationUnit> allCus) {
+    public void findFieldAndRefactorContextless(FieldDeclaration cField) {
         String classOneName = cOne.getNameAsString();
         String classTwoName = cTwo.getNameAsString();
+
+        // Temp class so we can do manipulations
+        ClassOrInterfaceDeclaration cTemp = new ClassOrInterfaceDeclaration();
 
         // Add the field to class two (and make sure we clone, so it doesn't update later)
         cTwo.addMember(cField.clone());
@@ -101,19 +111,19 @@ public class Refactor {
         // Assuming the field isn't public
         if (!cField.isPublic()) {
             // Create the getter and add it to class two if it doesn't already exist
-            String getterMethodName = "get" + field.substring(0, 1).toUpperCase() + field.substring(1).toLowerCase();
+            String getterMethodName = "get" + call.substring(0, 1).toUpperCase() + call.substring(1).toLowerCase();
             if (cTwo.getMethodsByName(getterMethodName).isEmpty()) {
                 cTwo.addMethod(getterMethodName, PUBLIC)
-                        .setBody(new BlockStmt().addStatement(new ReturnStmt(field)))
+                        .setBody(new BlockStmt().addStatement(new ReturnStmt(call)))
                         .setType(cField.getElementType());
             }
 
             // Create the setter and add it to class two if it doesn't already exist
-            String setterMethodName = "set" + field.substring(0, 1).toUpperCase() + field.substring(1).toLowerCase();
+            String setterMethodName = "set" + call.substring(0, 1).toUpperCase() + call.substring(1).toLowerCase();
             if (cTwo.getMethodsByName(setterMethodName).isEmpty()) {
                 cTwo.addMethod(setterMethodName, PUBLIC)
-                        .setBody(new BlockStmt().addStatement("this." + field + "=" + field + ";"))
-                        .addParameter(cField.getElementType(), field);
+                        .setBody(new BlockStmt().addStatement("this." + call + "=" + call + ";"))
+                        .addParameter(cField.getElementType(), call);
             }
 
             // Set that we need getters and setters
@@ -134,8 +144,8 @@ public class Refactor {
                 NodeMetaModel metaModel = expression.getMetaModel();
                 NodeMetaModel parentMetaModel = parent.getMetaModel();
 
-                String methodAccessName = classTwoName.toLowerCase() + ".get" + field.substring(0, 1).toUpperCase() +
-                        field.substring(1).toLowerCase();
+                String methodAccessName = classTwoName.toLowerCase() + ".get" + call.substring(0, 1).toUpperCase() +
+                        call.substring(1).toLowerCase();
 
                 // Fix to resolve BinaryExpr to it's ultimate parent
                 if(parentMetaModel.is(BinaryExpr.class)){
@@ -153,27 +163,27 @@ public class Refactor {
                         AssignExpr assignExpr = (AssignExpr) parent;
 
                         // If the field's value is the refactored field (i.e. `b = refactoredField;`)
-                        if (assignExpr.getValue().toString().equals(field)) {
-                            replaceField(classTwoName, assignExpr, finalIsGetterSetterNeeded, field);
+                        if (assignExpr.getValue().toString().equals(call)) {
+                            replaceField(classTwoName, assignExpr, finalIsGetterSetterNeeded, call);
                             // If the field's name is the refactored field (i.e. `refactoredField = b;`)
-                        } else if (fieldAccessExpr.getNameAsString().equals(field)) {
-                            if (!replaceField(finalIsGetterSetterNeeded, classTwoName, assignExpr, field)) {
+                        } else if (fieldAccessExpr.getNameAsString().equals(call)) {
+                            if (!replaceField(finalIsGetterSetterNeeded, classTwoName, assignExpr, call)) {
                                 // Reassign the name for direct access for public field
-                                fieldAccessExpr.setName(classTwoName.toLowerCase() + "." + field);
+                                fieldAccessExpr.setName(classTwoName.toLowerCase() + "." + call);
                             }
                         }
                     }else if(parentMetaModel.is(MethodCallExpr.class)){
                         // Find all instances of using a field within a method (i.e. `a(refactoredField);`)
                         // Only get refactored field
-                        if (fieldAccessExpr.getNameAsString().equals(field)) {
-                            replaceField(classTwoName, fieldAccessExpr, finalIsGetterSetterNeeded, field);
+                        if (fieldAccessExpr.getNameAsString().equals(call)) {
+                            replaceField(classTwoName, fieldAccessExpr, finalIsGetterSetterNeeded, call);
                         }
                     }else if(parentMetaModel.is(ReturnStmt.class)){
                         // Find all instances of returning the field (i.e. `return refactoredField;`)
                         ReturnStmt returnStmt = (ReturnStmt) parent;
 
                         // Only get refactored field
-                        if (fieldAccessExpr.getNameAsString().equals(field)) {
+                        if (fieldAccessExpr.getNameAsString().equals(call)) {
                             // If field isn't public
                             if (finalIsGetterSetterNeeded) {
                                 MethodCallExpr mc;
@@ -181,7 +191,7 @@ public class Refactor {
                                 // Check to see if unary expression is used (i.e.
                                 // `return refactoredField++;`)
                                 if (returnStmt.toString().contains("++") || returnStmt.toString().contains("--")) {
-                                    replaceField(classTwoName, returnStmt, cTwo, field);
+                                    replaceField(classTwoName, returnStmt, cTwo, call);
                                 } else {
                                     // Create the getter call
                                     mc = new MethodCallExpr(methodAccessName);
@@ -191,7 +201,7 @@ public class Refactor {
                                 }
                             } else {
                                 // Reassign the name for direct access for public field
-                                fieldAccessExpr.setName(classTwoName.toLowerCase() + "." + field);
+                                fieldAccessExpr.setName(classTwoName.toLowerCase() + "." + call);
                             }
                         }
                     }else if(parentMetaModel.is(UnaryExpr.class)){
@@ -199,12 +209,12 @@ public class Refactor {
                         UnaryExpr unaryExpr = (UnaryExpr) parent;
 
                         // Only get refactored field
-                        if (fieldAccessExpr.getNameAsString().equals(field)) {
+                        if (fieldAccessExpr.getNameAsString().equals(call)) {
                             // If field isn't public
                             if (!replaceField(finalIsGetterSetterNeeded, classTwoName, unaryExpr, cTwo,
-                                    field)) {
+                                    call)) {
                                 // Reassign the name for direct access for public field
-                                fieldAccessExpr.setName(classTwoName.toLowerCase() + "." + field);
+                                fieldAccessExpr.setName(classTwoName.toLowerCase() + "." + call);
                             }
                         }
                     }
@@ -216,31 +226,31 @@ public class Refactor {
                         AssignExpr assignExpr = (AssignExpr) parent;
 
                         // If the field's value is the refactored field (i.e. `b = refactoredField;`)
-                        if (assignExpr.getValue().toString().equals(field)) {
+                        if (assignExpr.getValue().toString().equals(call)) {
                             // If field isn't public
-                            replaceField(classTwoName, assignExpr, finalIsGetterSetterNeeded, field);
+                            replaceField(classTwoName, assignExpr, finalIsGetterSetterNeeded, call);
                             // If the field's name is the refactored field (i.e. `refactoredField = b;`)
-                        } else if (nameExpr.getNameAsString().equals(field)) {
-                            if (!replaceField(finalIsGetterSetterNeeded, classTwoName, assignExpr, field)) {
+                        } else if (nameExpr.getNameAsString().equals(call)) {
+                            if (!replaceField(finalIsGetterSetterNeeded, classTwoName, assignExpr, call)) {
                                 // Reassign the name for direct access for public field
-                                nameExpr.setName(classTwoName.toLowerCase() + "." + field);
+                                nameExpr.setName(classTwoName.toLowerCase() + "." + call);
                             }
                         }
                     }else if(parentMetaModel.is(MethodCallExpr.class)){
                         // Find all instances of using a field within a method (i.e. `a(refactoredField);`)
                         // Only get refactored field
-                        if (nameExpr.getNameAsString().equals(field)) {
+                        if (nameExpr.getNameAsString().equals(call)) {
                             // If field isn't public
-                            if (!replaceField(finalIsGetterSetterNeeded, classTwoName, nameExpr, field)) {
+                            if (!replaceField(finalIsGetterSetterNeeded, classTwoName, nameExpr, call)) {
                                 // Reassign the name for direct access for public field
-                                nameExpr.setName(classTwoName.toLowerCase() + "." + field);
+                                nameExpr.setName(classTwoName.toLowerCase() + "." + call);
                             }
                         }
                     }else if(parentMetaModel.is(ReturnStmt.class)){
                         // Find all instances of returning the field (i.e. `return refactoredField;`)
                         ReturnStmt returnStmt = (ReturnStmt) parent;
 
-                        if (nameExpr.getNameAsString().equals(field)) {
+                        if (nameExpr.getNameAsString().equals(call)) {
                             // If field isn't public
                             if (finalIsGetterSetterNeeded) {
                                 MethodCallExpr mc;
@@ -248,7 +258,7 @@ public class Refactor {
                                 // Check to see if unary expression is used (i.e.
                                 // `return refactoredField++;`)
                                 if (returnStmt.toString().contains("++") || returnStmt.toString().contains("--")) {
-                                    replaceField(classTwoName, returnStmt, cTwo, field);
+                                    replaceField(classTwoName, returnStmt, cTwo, call);
                                 } else {
                                     // Create the getter call
                                     mc = new MethodCallExpr(methodAccessName);
@@ -258,19 +268,19 @@ public class Refactor {
                                 }
                             } else {
                                 // Reassign the name for direct access for public field
-                                nameExpr.setName(classTwoName.toLowerCase() + "." + field);
+                                nameExpr.setName(classTwoName.toLowerCase() + "." + call);
                             }
                         }
                     }else if(parentMetaModel.is(UnaryExpr.class)){
                         // Find all instances of unary expressions (i.e. `refactoredField++;)
                         UnaryExpr unaryExpr = (UnaryExpr) parent;
 
-                        if (nameExpr.getNameAsString().equals(field)) {
+                        if (nameExpr.getNameAsString().equals(call)) {
                             // Only get refactored field
                             if (!replaceField(finalIsGetterSetterNeeded, classTwoName, unaryExpr, cTwo,
-                                    field)) {
+                                    call)) {
                                 // Reassign the name for direct access for public field
-                                nameExpr.setName(classTwoName.toLowerCase() + "." + field);
+                                nameExpr.setName(classTwoName.toLowerCase() + "." + call);
                             }
                         }
                     }
@@ -282,7 +292,7 @@ public class Refactor {
                         // way a refactored field can be assigned (i.e. `String a = refactoredField;`)
                         if (variableDeclarator.getInitializer().isPresent()) {
                             // Only find the refactored field
-                            if (variableDeclarator.getInitializer().get().toString().equals(field)) {
+                            if (variableDeclarator.getInitializer().get().toString().equals(call)) {
                                 // If field isn't public
                                 if (finalIsGetterSetterNeeded) {
                                     // Create the getter call
@@ -293,7 +303,7 @@ public class Refactor {
                                     variableDeclarator.setInitializer(mc);
                                 } else {
                                     // Reassign the initializer to just direct access for public field
-                                    variableDeclarator.setInitializer(classTwoName.toLowerCase() + "." + field);
+                                    variableDeclarator.setInitializer(classTwoName.toLowerCase() + "." + call);
                                 }
                             }
                         }
@@ -315,6 +325,8 @@ public class Refactor {
                 break;
             }
         }
+
+        findAndUpdateInstancesOfClassOne(cOne.getNameAsString(),cTwo.getNameAsString(),res);
     }
 
     private void findAndUpdateInstancesOfClassOne(String one, String two, List<ClassOrInterfaceDeclaration> res){
@@ -351,6 +363,21 @@ public class Refactor {
                     });
                 }
             });
+        });
+
+        // update fields that use a field from the parent class
+        res.stream().filter(c ->
+                !c.isInterface() && !c.getNameAsString().equals(one) && !c.getNameAsString().equals(two) &&
+                        c.getExtendedTypes().isNonEmpty() && c.getExtendedTypes().get(0).getNameAsString().equals(one)
+        ).forEach(c -> {
+            if(c.findAll(VariableDeclarator.class, v -> v.getNameAsString().equals(call)).isEmpty()){
+                c.findAll(FieldAccessExpr.class, f -> f.getNameAsString().equals(call)).forEach(f -> {
+
+                });
+                c.findAll(NameExpr.class, f -> f.getNameAsString().equals(call)).forEach(f -> {
+
+                });
+            }
         });
     }
 

@@ -30,8 +30,6 @@ public class Controller {
     Repository repo = null;
     String repoDirectory = "";
 
-    Refactor refactoring = new Refactor();
-
     @PostMapping("/api/repository")
     public Map<String, String> getRepository(@RequestParam(name = "projectUrl", required = true) String projectUrl) {
         Map<String, String> result = new HashMap<>();
@@ -219,9 +217,6 @@ public class Controller {
                 ClassOrInterfaceDeclaration cOne = cOneOpt.get();
                 ClassOrInterfaceDeclaration cTwo = cTwoOpt.get();
 
-                // Temp class so we can do manipulations
-                ClassOrInterfaceDeclaration cTemp = new ClassOrInterfaceDeclaration();
-
                 // Grab the field, so we know it's modifiers (optional)
                 Optional<FieldDeclaration> cFieldOpt = cOne.getFieldByName(field);
 
@@ -233,11 +228,12 @@ public class Controller {
 
                         // Assuming the field exists in class one
                         if (cOne.getFieldByName(field).isPresent()) {
+                            Refactor refactoring = new Refactor(cOne,cTwo,field,res,allCus);
                             // If the user wants context-ful refactoring or not
                             if(context)
-                                refactoring.findFieldAndRefactorContext(cOne, cTwo, field, res);
+                                refactoring.findFieldAndRefactorContext();
                             else
-                                refactoring.findFieldAndRefactorContextless(field,cTemp,cOne,cTwo,cField,allCus);
+                                refactoring.findFieldAndRefactorContextless(cField);
                         } else {
                             result.put("status", "failed");
                             result.put("message", "Field to be moved does not exist, couldn't apply refactoring.");
