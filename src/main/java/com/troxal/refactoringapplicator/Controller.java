@@ -217,42 +217,51 @@ public class Controller {
                 ClassOrInterfaceDeclaration cOne = cOneOpt.get();
                 ClassOrInterfaceDeclaration cTwo = cTwoOpt.get();
 
-                // Grab the field, so we know it's modifiers (optional)
-                Optional<FieldDeclaration> cFieldOpt = cOne.getFieldByName(field);
+                if(cOne.getExtendedTypes().stream().noneMatch(e -> e.getNameAsString().equals(classTwo)) &&
+                        cTwo.getExtendedTypes().stream().noneMatch(e -> e.getNameAsString().equals(classOne))){
 
-                // Assuming the field exists in class one
-                if (cFieldOpt.isPresent()) {
-                    if (cTwo.getFieldByName(field).isEmpty()) {
-                        // Get the field
-                        FieldDeclaration cField = cFieldOpt.get();
+                    // Grab the field, so we know it's modifiers (optional)
+                    Optional<FieldDeclaration> cFieldOpt = cOne.getFieldByName(field);
 
-                        // Assuming the field exists in class one
-                        if (cOne.getFieldByName(field).isPresent()) {
-                            Refactor refactoring = new Refactor(cOne,cTwo,field,res,allCus);
-                            // If the user wants context-ful refactoring or not
-                            if(context)
-                                refactoring.findFieldAndRefactorContext();
-                            else
-                                refactoring.findFieldAndRefactorContextless(cField);
+                    // Assuming the field exists in class one
+                    if (cFieldOpt.isPresent()) {
+                        if (cTwo.getFieldByName(field).isEmpty()) {
+                            // Get the field
+                            FieldDeclaration cField = cFieldOpt.get();
+
+                            // Assuming the field exists in class one
+                            if (cOne.getFieldByName(field).isPresent()) {
+                                Refactor refactoring = new Refactor(cOne,cTwo,field,res,allCus);
+                                // If the user wants context-ful refactoring or not
+                                if(context)
+                                    refactoring.findFieldAndRefactorContext();
+                                else
+                                    refactoring.findFieldAndRefactorContextless(cField);
+                            } else {
+                                result.put("status", "failed");
+                                result.put("message", "Field to be moved does not exist, couldn't apply refactoring.");
+                                return result;
+                            }
                         } else {
                             result.put("status", "failed");
-                            result.put("message", "Field to be moved does not exist, couldn't apply refactoring.");
+                            result.put("message", "Field to be moved already exists in second class, couldn't apply refactoring.");
                             return result;
                         }
+
                     } else {
                         result.put("status", "failed");
-                        result.put("message", "Field to be moved already exists in second class, couldn't apply refactoring.");
+                        result.put("message", "Field to be moved does not exist, couldn't apply refactoring.");
                         return result;
                     }
 
+                    // Save all changes
+                    sourceRoot.saveAll();
                 } else {
-                    result.put("status", "failed");
-                    result.put("message", "Field to be moved does not exist, couldn't apply refactoring.");
+                    result.put("status", "warning");
+                    result.put("message", "Do a Push Up or Push Down refactoring instead, you can't perform a move " +
+                            "field refactoring within the same branch.");
                     return result;
                 }
-
-                // Save all changes
-                sourceRoot.saveAll();
             } else {
                 result.put("status", "failed");
                 result.put("message", "One or both classes do not exist, couldn't apply refactoring.");
