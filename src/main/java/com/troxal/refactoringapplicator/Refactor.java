@@ -365,19 +365,22 @@ public class Refactor {
             });
         });
 
-        // update fields that use a field from the parent class
+        // Update fields that use a field from the parent class
+        // Find every class that isn't class one or two, but has class one as a parent somewhere
         res.stream().filter(c ->
                 !c.isInterface() && !c.getNameAsString().equals(one) && !c.getNameAsString().equals(two) &&
-                        c.getExtendedTypes().isNonEmpty() &&
                         c.getExtendedTypes().stream().anyMatch(et -> et.getNameAsString().equals(one))
         ).forEach(c -> {
+            // Find only classes where there isn't any variable declarator for the given field
             if(c.findAll(VariableDeclarator.class, v -> v.getNameAsString().equals(call)).isEmpty()){
-                c.findAll(FieldAccessExpr.class, f -> f.getNameAsString().equals(call)).forEach(f -> {
-
-                });
-                c.findAll(NameExpr.class, f -> f.getNameAsString().equals(call)).forEach(f -> {
-
-                });
+                // This means that if the field is accessed, it's from the parent
+                if(!c.findAll(FieldAccessExpr.class, f -> f.getNameAsString().equals(call)).isEmpty() ||
+                        !c.findAll(NameExpr.class, f -> f.getNameAsString().equals(call)).isEmpty()){
+                    if (c.getFieldByName(two.toLowerCase()).isEmpty()) {
+                        // so create the object to access the field
+                        c.addField(two,two.toLowerCase()).getVariable(0).setInitializer("new "+two+"()");
+                    }
+                }
             }
         });
     }
