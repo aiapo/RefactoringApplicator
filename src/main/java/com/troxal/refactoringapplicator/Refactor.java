@@ -368,7 +368,8 @@ public class Refactor {
         // update fields that use a field from the parent class
         res.stream().filter(c ->
                 !c.isInterface() && !c.getNameAsString().equals(one) && !c.getNameAsString().equals(two) &&
-                        c.getExtendedTypes().isNonEmpty() && c.getExtendedTypes().get(0).getNameAsString().equals(one)
+                        c.getExtendedTypes().isNonEmpty() &&
+                        c.getExtendedTypes().stream().anyMatch(et -> et.getNameAsString().equals(one))
         ).forEach(c -> {
             if(c.findAll(VariableDeclarator.class, v -> v.getNameAsString().equals(call)).isEmpty()){
                 c.findAll(FieldAccessExpr.class, f -> f.getNameAsString().equals(call)).forEach(f -> {
