@@ -219,9 +219,9 @@ public class Controller {
 
                 if(cOne.getExtendedTypes().stream().anyMatch(e -> e.getNameAsString().equals(classTwo)) ||
                         cTwo.getExtendedTypes().stream().anyMatch(e -> e.getNameAsString().equals(classOne))){
-                    result.put("status", "failed");
-                    result.put("message", "Do a Push up or Push Down refactoring instead, you can't perform a move " +
-                            "field refactoring within the same branch.");
+                    result.put("status", "info");
+                    result.put("message", "Please apply a Push up or Push Down refactoring instead, you can't perform" +
+                            " a move field refactoring within the same branch.");
                     return result;
                 }
 
@@ -243,18 +243,18 @@ public class Controller {
                             else
                                 refactoring.findFieldAndRefactorContextless(cField);
                         } else {
-                            result.put("status", "failed");
+                            result.put("status", "error");
                             result.put("message", "Field to be moved does not exist, couldn't apply refactoring.");
                             return result;
                         }
                     } else {
-                        result.put("status", "failed");
+                        result.put("status", "error");
                         result.put("message", "Field to be moved already exists in second class, couldn't apply refactoring.");
                         return result;
                     }
 
                 } else {
-                    result.put("status", "failed");
+                    result.put("status", "error");
                     result.put("message", "Field to be moved does not exist, couldn't apply refactoring.");
                     return result;
                 }
@@ -262,7 +262,7 @@ public class Controller {
                 // Save all changes
                 sourceRoot.saveAll();
             } else {
-                result.put("status", "failed");
+                result.put("status", "error");
                 result.put("message", "One or both classes do not exist, couldn't apply refactoring.");
                 return result;
             }
@@ -271,7 +271,7 @@ public class Controller {
             result.put("message", "Moving " + field + " from class " + classOne + " to " + classTwo + " was a success!");
 
         } catch (IOException e) {
-            result.put("status", "failed");
+            result.put("status", "error");
             result.put("message", "Error with parsing: " + e);
         }
         return result;

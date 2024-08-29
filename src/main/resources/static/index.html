@@ -266,9 +266,9 @@
                             createGraph();
                         }else{
                             Swal.fire({
-                                title: "Error",
+                                title: capitalizeFirstLetter(json.status),
                                 text: json.message,
-                                icon: "error"
+                                icon: json.status
                             });
                         }
                     })
@@ -295,9 +295,9 @@
                     createGraph();
                 }else{
                     Swal.fire({
-                        title: "Error",
+                        title: capitalizeFirstLetter(json.status),
                         text: json.message,
-                        icon: "error"
+                        icon: json.status
                     });
                 }
             })
@@ -348,6 +348,10 @@
                 }
             })
     });
+
+    function capitalizeFirstLetter(string) {
+        return string.charAt(0).toUpperCase() + string.slice(1);
+    }
 </script>
 
 
